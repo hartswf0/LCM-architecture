@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Resistance Topology: Architectural Interactions</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden;
+            background: linear-gradient(45deg, #1a1a1a, #000000);
+            font-family: 'Courier New', monospace;
+            color: #e0e0e0;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+        }
+        #error {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            text-align: center;
+            color: #ff4444;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">Resistance Topology: Architectural Interactions</div>
+    <div id="error"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+    <script>
+        class ResistanceTopology {
+            constructor() {
+                this.concepts = [
+                    { 
+                        id: "exclusion", 
+                        name: "Architectural Exclusion", 
+                        description: "Spatial design that systematically isolates and marginalizes",
+                        vector: [0.7, -0.5, 0.3, -0.2, 0.6, 0.1],
+                        color: 0x8B0000,
+                        hostilityFactor: 0.8
+                    },
+                    { 
+                        id: "resistance", 
+                        name: "Persistent Resistance", 
+                        description: "Continuous push against oppressive spatial structures",
+                        vector: [-0.3, 0.8, 0.4, 0.5, -0.1, 0.7],
+                        color: 0x004d00,
+                        hostilityFactor: 0.6
+                    },
+                    { 
+                        id: "empowerment", 
+                        name: "Spatial Reclamation", 
+                        description: "Transforming spaces of control into spaces of agency",
+                        vector: [0.5, -0.4, 0.7, -0.6, 0.2, -0.3],
+                        color: 0x4a4a4a,
+                        hostilityFactor: 0.4
+                    }
+                ];
+            }
+
+            interpolate(concept1, concept2, t) {
+                return {
+                    vector: concept1.vector.map((val, idx) => 
+                        val * (1-t) + concept2.vector[idx] * t
+                    ),
+                    color: concept1.color * (1-t) + concept2.color * t,
+                    hostilityFactor: concept1.hostilityFactor * (1-t) + concept2.hostilityFactor * t
+                };
+            }
+
+            generateTransitionalConcepts(t) {
+                const transitionalConcepts = [];
+                this.concepts.forEach((concept1, i) => {
+                    this.concepts.slice(i+1).forEach(concept2 => {
+                        const interpolated = this.interpolate(concept1, concept2, t);
+                        transitionalConcepts.push({
+                            name: `Transition: ${concept1.name} → ${concept2.name}`,
+                            vector: interpolated.vector,
+                            color: interpolated.color,
+                            hostilityFactor: interpolated.hostilityFactor,
+                            description: `Negotiating space between ${concept1.name} and ${concept2.name}`
+                        });
+                    });
+                });
+                return transitionalConcepts;
+            }
+        }
+
+        let scene, camera, renderer, topology, conceptNodes;
+        let interpolationValue = 0.5;
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
+        function init() {
+            try {
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x121212);
+
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.z = 5;
+
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+
+                topology = new ResistanceTopology();
+
+                const ambientLight = new THREE.AmbientLight(0x404040);
+                scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                directionalLight.position.set(1, 1, 1);
+                scene.add(directionalLight);
+
+                // Create custom interpolation property on window
+                window.interpolationValue = interpolationValue;
+
+                const gui = new dat.GUI();
+                gui.add(window, 'interpolationValue', 0, 1)
+                    .name('Spatial Negotiation')
+                    .onChange(updateTopology);
+
+                updateTopology();
+
+                window.addEventListener('resize', onWindowResize, false);
+                window.addEventListener('mousemove', onMouseMove, false);
+            } catch (error) {
+                console.error(error);
+                document.getElementById('error').textContent = 
+                    `Initialization Error: ${error.message}`;
+            }
+        }
+
+        function updateTopology() {
+            // Clear existing scene elements
+            if (conceptNodes) {
+                conceptNodes.forEach(node => scene.remove(node));
+            }
+
+            const allConcepts = [
+                ...topology.concepts, 
+                ...topology.generateTransitionalConcepts(window.interpolationValue)
+            ];
+
+            conceptNodes = allConcepts.map(concept => {
+                const size = 0.2 + Math.abs(concept.vector.reduce((a,b) => a+b, 0)) * 0.3;
+                const geometry = new THREE.SphereGeometry(size, 32, 32);
+                
+                const material = new THREE.MeshStandardMaterial({ 
+                    color: concept.color,
+                    metalness: concept.hostilityFactor,
+                    roughness: 1 - concept.hostilityFactor
+                });
+                
+                const sphere = new THREE.Mesh(geometry, material);
+
+                sphere.position.set(
+                    concept.vector[0] * 2,
+                    concept.vector[1] * 2,
+                    concept.vector[2] * 2
+                );
+
+                sphere.userData = concept;
+                scene.add(sphere);
+                return sphere;
+            });
+
+            // Create connections between core concepts
+            topology.concepts.forEach((concept1, i) => {
+                topology.concepts.slice(i+1).forEach(concept2 => {
+                    const points = [
+                        new THREE.Vector3(
+                            concept1.vector[0] * 2, 
+                            concept1.vector[1] * 2, 
+                            concept1.vector[2] * 2
+                        ),
+                        new THREE.Vector3(
+                            concept2.vector[0] * 2, 
+                            concept2.vector[1] * 2, 
+                            concept2.vector[2] * 2
+                        )
+                    ];
+
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const material = new THREE.LineBasicMaterial({ 
+                        color: 0xffffff, 
+                        transparent: true, 
+                        opacity: 0.3 
+                    });
+                    const line = new THREE.LineSegments(geometry, material);
+                    scene.add(line);
+                });
+            });
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onMouseMove(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            scene.rotation.y += 0.003;
+            scene.rotation.x += 0.001;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(conceptNodes);
+
+            conceptNodes.forEach(node => {
+                const isIntersected = intersects.find(intersect => intersect.object === node);
+                if (isIntersected) {
+                    node.scale.set(1.5, 1.5, 1.5);
+                    document.getElementById('info').innerHTML = 
+                        `<strong>${node.userData.name}</strong><br>${node.userData.description}<br>Vector: [${node.userData.vector.map(v => v.toFixed(2))}]`;
+                } else {
+                    node.scale.set(1, 1, 1);
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>

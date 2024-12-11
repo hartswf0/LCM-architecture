@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cultural Embedding VAE Exploration</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body { 
+            font-family: 'Arial', sans-serif; 
+            background-color: #1a1a2e; 
+            color: #e0e0e0; 
+            display: flex;
+            margin: 0;
+            height: 100vh;
+        }
+        #visualization { 
+            flex-grow: 1; 
+            position: relative;
+            background: linear-gradient(45deg, #16213e, #0f3460);
+        }
+        #controls {
+            width: 300px;
+            padding: 20px;
+            background-color: #0f3460;
+            display: flex;
+            flex-direction: column;
+        }
+        .node {
+            transition: all 0.3s ease;
+        }
+        .node:hover {
+            stroke: #fff;
+            stroke-width: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h2>Cultural Embedding Explorer</h2>
+        <div>
+            <label>Latent Dimension Sampling</label>
+            <input type="range" id="latentSampler" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div id="conceptInfo">Select a point to explore</div>
+    </div>
+    <div id="visualization"></div>
+
+    <script>
+        // Simulated Cultural Embedding VAE
+        class CulturalEmbeddingVAE {
+            constructor() {
+                this.dimensions = 6;
+                this.culturalConcepts = [
+                    { name: "Technological Innovation", vector: [0.7, 0.2, -0.5, 0.3, 0.1, 0.6] },
+                    { name: "Social Resilience", vector: [-0.3, 0.8, 0.4, -0.2, 0.6, -0.1] },
+                    { name: "Economic Control", vector: [0.5, -0.4, 0.7, 0.2, -0.3, 0.1] },
+                    { name: "Community Dynamics", vector: [-0.6, 0.5, -0.2, 0.7, 0.4, -0.3] }
+                ];
+            }
+
+            interpolateConcepts(concept1, concept2, t) {
+                return concept1.vector.map((val, idx) => 
+                    val * (1-t) + concept2.vector[idx] * t
+                );
+            }
+
+            generateSimilarConcept(baseVector) {
+                return baseVector.map(val => val + (Math.random() - 0.5) * 0.2);
+            }
+        }
+
+        const vae = new CulturalEmbeddingVAE();
+        const svg = d3.select("#visualization")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%");
+
+        const width = document.getElementById('visualization').clientWidth;
+        const height = document.getElementById('visualization').clientHeight;
+
+        const colorScale = d3.scaleLinear()
+            .domain([-1, 0, 1])
+            .range(["#0f3460", "#e94560", "#16213e"]);
+
+        const latentSampler = document.getElementById('latentSampler');
+        const conceptInfo = document.getElementById('conceptInfo');
+
+        function visualizeLatentSpace() {
+            const t = parseFloat(latentSampler.value);
+            
+            const interpolatedConcepts = vae.culturalConcepts.flatMap((concept1, i) => 
+                vae.culturalConcepts.slice(i+1).map(concept2 => ({
+                    name: `${concept1.name} ↔ ${concept2.name}`,
+                    vector: vae.interpolateConcepts(concept1, concept2, t)
+                }))
+            );
+
+            const allConcepts = [...vae.culturalConcepts, ...interpolatedConcepts];
+
+            const xScale = d3.scaleLinear()
+                .domain(d3.extent(allConcepts, d => d.vector[0]))
+                .range([50, width-50]);
+
+            const yScale = d3.scaleLinear()
+                .domain(d3.extent(allConcepts, d => d.vector[1]))
+                .range([height-50, 50]);
+
+            svg.selectAll(".node")
+                .data(allConcepts)
+                .join("circle")
+                .attr("class", "node")
+                .attr("cx", d => xScale(d.vector[0]))
+                .attr("cy", d => yScale(d.vector[1]))
+                .attr("r", 10)
+                .attr("fill", d => colorScale(d.vector[0]))
+                .on("mouseover", function(event, d) {
+                    conceptInfo.innerHTML = `
+                        <strong>${d.name}</strong><br>
+                        Vector: [${d.vector.map(v => v.toFixed(2))}]
+                    `;
+                    d3.select(this).attr("r", 15);
+                })
+                .on("mouseout", function() {
+                    d3.select(this).attr("r", 10);
+                });
+        }
+
+        latentSampler.addEventListener('input', visualizeLatentSpace);
+        visualizeLatentSpace();
+    </script>
+</body>
+</html>

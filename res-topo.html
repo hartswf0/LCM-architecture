@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Resistance Topology Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #1a1a1a;
+            font-family: 'IBM Plex Mono', monospace;
+            color: #e0e0e0;
+        }
+        svg {
+            width: 100vw;
+            height: 100vh;
+        }
+        .behavior-text {
+            font-size: 12px;
+            fill: #A9A9A9; /* Default BlueViolet for low AVS */
+            transition: fill 0.3s ease, opacity 0.3s ease, font-size 0.3s ease;
+            pointer-events: none;
+        }
+        .link {
+            stroke: #4a4a4a;
+            stroke-width: 2;
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+        }
+        .node circle.inner-circle {
+            stroke: #e0e0e0;
+            stroke-width: 2;
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+            cursor: pointer;
+        }
+        .node circle.outer-circle {
+            stroke: none;
+            stroke-width: 0;
+            fill: none;
+            transition: stroke 0.3s ease, stroke-width 0.3s ease;
+        }
+        .node text {
+            font-size: 14px;
+            font-weight: bold;
+            pointer-events: none;
+        }
+        /* Styles for global behavior states */
+        .behavior-most-likely {
+            fill: #FFD700; /* Bright Gold */
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .behavior-least-likely {
+            fill: #A9A9A9; /* Light Grey */
+            font-size: 12px;
+            opacity: 0.6;
+        }
+        /* Tooltip styling */
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 6px;
+            font: 12px sans-serif;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid #fff;
+            border-radius: 4px;
+            pointer-events: none;
+            color: #fff;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <svg></svg>
+    <div class="tooltip"></div>
+    <script>
+        // Set up SVG dimensions
+        const svg = d3.select("svg");
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        svg.attr("width", width).attr("height", height);
+
+        // Tooltip setup
+        const tooltip = d3.select(".tooltip");
+
+        // Define main entities
+        const entities = [
+            { id: "isolation", name: "Architectural Isolation", color: "#8B0000" }, // Dark Red
+            { id: "resistance", name: "Persistent Resistance", color: "#004d00" },  // Dark Green
+            { id: "estrangement", name: "Estrangement Mechanism", color: "#4a4a4a" } // Dark Gray
+        ];
+
+        // Define behaviors with a flat structure and distinct weights
+        const behaviors = [
+            // Architectural Isolation Behaviors
+            {
+                id: "exclusion",
+                name: "Exclusion",
+                parent: "isolation",
+                influencedBy: ["resistance", "estrangement"],
+                weights: { resistance: 1.2, estrangement: 0.8 },
+                score: 0,
+                state: "neutral"
+            },
+            {
+                id: "marginalization",
+                name: "Marginalization",
+                parent: "isolation",
+                influencedBy: ["resistance", "estrangement"],
+                weights: { resistance: 1.0, estrangement: 1.0 },
+                score: 0,
+                state: "neutral"
+            },
+            {
+                id: "spatial-violence",
+                name: "Spatial Violence",
+                parent: "isolation",
+                influencedBy: ["resistance", "estrangement"],
+                weights: { resistance: 0.7, estrangement: 1.3 },
+                score: 0,
+                state: "neutral"
+            },
+            // Persistent Resistance Behaviors
+            {
+                id: "reclamation",
+                name: "Reclamation",
+                parent: "resistance",
+                influencedBy: ["isolation", "estrangement"],
+                weights: { isolation: 1.1, estrangement: 0.9 },
+                score: 0,
+                state: "neutral"
+            },
+            {
+                id: "disruption",
+                name: "Disruption",
+                parent: "resistance",
+                influencedBy: ["isolation", "estrangement"],
+                weights: { isolation: 0.8, estrangement: 1.2 },
+                score: 0,
+                state: "neutral"
+            },
+            {
+                id: "counter-design",
+                name: "Counter-design",
+                parent: "resistance",
+                influencedBy: ["isolation", "estrangement"],
+                weights: { isolation: 1.0, estrangement: 1.0 },
+                score: 0,
+                state: "neutral"
+            },
+            // Estrangement Mechanism Behaviors
+            {
+                id: "psychological-distancing",
+                name: "Psychological Distancing",
+                parent: "estrangement",
+                influencedBy: ["isolation", "resistance"],
+                weights: { isolation: 0.8, resistance: 1.2 },
+                score: 0,
+                state: "neutral"
+            },
+            {
+                id: "normative-control",
+                name: "Normative Control",
+                parent: "estrangement",
+                influencedBy: ["isolation", "resistance"],
+                weights: { isolation: 1.0, resistance: 1.0 },
+                score: 0,
+                state: "neutral"
+            },
+            {
+                id: "subtle-oppression",
+                name: "Subtle Oppression",
+                parent: "estrangement",
+                influencedBy: ["isolation", "resistance"],
+                weights: { isolation: 1.3, resistance: 0.7 },
+                score: 0,
+                state: "neutral"
+            }
+        ];
+
+        // Define links between main entities
+        const links = [
+            { source: "isolation", target: "resistance" },
+            { source: "resistance", target: "estrangement" },
+            { source: "estrangement", target: "isolation" }
+        ];
+
+        const colorMap = {
+            isolation: "#8B0000",     // Dark Red
+            resistance: "#004d00",    // Dark Green
+            estrangement: "#4a4a4a"   // Dark Gray
+        };
+
+        // Initialize positions in a circular layout
+        const radius = 200;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        entities.forEach((d, i) => {
+            const angle = (i / entities.length) * 2 * Math.PI;
+            d.x = centerX + radius * Math.cos(angle);
+            d.y = centerY + radius * Math.sin(angle);
+        });
+
+        // Draw shape path first to ensure it's beneath other elements
+        updateShape();
+
+        // Draw links between nodes
+        const linkElements = svg.selectAll(".link")
+                                .data(links)
+                                .enter()
+                                .append("line")
+                                .attr("class", "link")
+                                .attr("x1", d => getEntityById(d.source).x)
+                                .attr("y1", d => getEntityById(d.source).y)
+                                .attr("x2", d => getEntityById(d.target).x)
+                                .attr("y2", d => getEntityById(d.target).y);
+
+        // Create node groups
+        const node = svg.selectAll(".node")
+                        .data(entities)
+                        .enter()
+                        .append("g")
+                        .attr("class", "node")
+                        .attr("transform", d => `translate(${d.x},${d.y})`)
+                        .call(d3.drag().on("drag", dragged))
+                        .on("mouseover", showTooltip)
+                        .on("mouseout", hideTooltip);
+
+        // Draw outer circles (initially hidden)
+        node.append("circle")
+            .attr("class", "outer-circle")
+            .attr("r", 50) // Slightly larger than inner circle
+            .attr("fill", "none")
+            .attr("stroke-width", 4)
+            .attr("stroke", "none"); // Will be updated based on highest sum
+
+        // Draw inner circles
+        node.append("circle")
+            .attr("class", "inner-circle")
+            .attr("r", 40)
+            .attr("fill", d => colorMap[d.id]);
+
+        // Add entity names
+        node.append("text")
+            .text(d => d.name)
+            .attr("text-anchor", "middle")
+            .attr("dy", 5)
+            .attr("fill", "#fff");
+
+        // Add behavior texts
+        const behaviorGroups = svg.selectAll(".behavior-group")
+                                  .data(behaviors)
+                                  .enter()
+                                  .append("g")
+                                  .attr("class", "behavior-group")
+                                  .attr("transform", d => {
+                                      const parent = getEntityById(d.parent);
+                                      // Position behaviors below their parent node
+                                      const offsetY = 60; // Distance below the node
+                                      const behaviorsOfParent = behaviors.filter(b => b.parent === d.parent);
+                                      const index = behaviorsOfParent.indexOf(d);
+                                      return `translate(${parent.x}, ${parent.y + offsetY + index * 18})`;
+                                  });
+
+        const behaviorTexts = behaviorGroups.append("text")
+                                             .attr("class", "behavior-text")
+                                             .text(d => d.name)
+                                             .attr("text-anchor", "middle")
+                                             .attr("dy", "0.35em"); // Vertical alignment
+
+        // Tooltip functions
+        function showTooltip(event, d) {
+            // d here is the entity
+            tooltip.transition()
+                .duration(200)
+                .style("opacity", 0.9);
+            tooltip.html(`<strong>${d.name}</strong>`)
+                .style("left", (event.pageX + 10) + "px")
+                .style("top", (event.pageY - 28) + "px");
+        }
+
+        function hideTooltip() {
+            tooltip.transition()
+                .duration(500)
+                .style("opacity", 0);
+        }
+
+        // Function to update the visualization on drag
+        function updateVisualization() {
+            // Update link positions
+            linkElements.attr("x1", d => getEntityById(d.source).x)
+                        .attr("y1", d => getEntityById(d.source).y)
+                        .attr("x2", d => getEntityById(d.target).x)
+                        .attr("y2", d => getEntityById(d.target).y);
+
+            // Update node positions
+            node.attr("transform", d => `translate(${d.x},${d.y})`);
+
+            // Update behavior positions
+            behaviors.forEach((b, i) => {
+                const parent = getEntityById(b.parent);
+                const behaviorGroup = svg.selectAll(".behavior-group")
+                                         .filter(d => d.id === b.id);
+                const offsetY = 60; // Distance below the node
+                const behaviorsOfParent = behaviors.filter(bh => bh.parent === b.parent);
+                const index = behaviorsOfParent.indexOf(b);
+                behaviorGroup.attr("transform", `translate(${parent.x}, ${parent.y + offsetY + index * 18})`);
+            });
+
+            // Update behavior scores and styles
+            updateBehaviorScores();
+
+            // Update outer circles based on highest sum
+            updateOuterCircles();
+
+            // Update shape path based on highest sum
+            updateShape();
+        }
+
+        // Function to handle dragging
+        function dragged(event, d) {
+            d.x = event.x;
+            d.y = event.y;
+            updateVisualization();
+        }
+
+        // Helper function to get entity by ID
+        function getEntityById(id) {
+            return entities.find(e => e.id === id);
+        }
+
+        // Function to calculate Euclidean distance between two entities
+        function calculateDistance(entityA, entityB) {
+            return Math.hypot(entityA.x - entityB.x, entityA.y - entityB.y);
+        }
+
+        // Function to calculate Action Vector Score (AVS) for a behavior
+        function calculateAVS(behavior) {
+            let AVS = 0;
+            const epsilon = 1e-5; // Prevent division by zero
+            const k = 100; // Normalization constant (adjust as needed)
+
+            behavior.influencedBy.forEach(influencerId => {
+                const influencer = getEntityById(influencerId);
+                const parent = getEntityById(behavior.parent);
+                const distance = calculateDistance(parent, influencer);
+                const influence = behavior.weights[influencerId] * (1 / (distance + epsilon)) * k;
+                AVS += influence;
+            });
+
+            return AVS;
+        }
+
+        // Function to determine the state based on AVS
+        function determineState(AVS, maxAVS) {
+            // Dynamic normalization based on current max AVS
+            const normalizedAVS = AVS / maxAVS;
+
+            if (normalizedAVS >= 0.7) {
+                return "amplified"; // Most Likely
+            } else if (normalizedAVS <= 0.3) {
+                return "attenuated"; // Least Likely
+            } else {
+                return "neutral"; // Intermediate
+            }
+        }
+
+        // Function to update behavior scores and styles
+        function updateBehaviorScores() {
+            // Calculate AVS for each behavior
+            behaviors.forEach(b => {
+                const AVS = calculateAVS(b);
+                b.score = AVS;
+            });
+
+            // Determine global max and min AVS
+            const maxAVS = d3.max(behaviors, d => d.score) || 1;
+            const minAVS = d3.min(behaviors, d => d.score) || 0;
+
+            // Assign states based on AVS
+            behaviors.forEach(b => {
+                b.state = determineState(b.score, maxAVS);
+            });
+
+            // Identify the most and least likely behaviors globally
+            const mostLikelyBehavior = behaviors.reduce((a, b) => a.score > b.score ? a : b, behaviors[0]);
+            const leastLikelyBehavior = behaviors.reduce((a, b) => a.score < b.score ? a : b, behaviors[0]);
+
+            // Reset all behavior styles
+            behaviorTexts
+                .classed("behavior-most-likely", false)
+                .classed("behavior-least-likely", false)
+                .classed("behavior-amplified", false)
+                .classed("behavior-attenuated", false)
+                .classed("behavior-neutral", false)
+                .style("fill", d => {
+                    const behavior = behaviors.find(b => b.id === d.id);
+                    return d.state === "neutral" ? "#9370DB" : d.state === "attenuated" ? "#8A2BE2" : "#FFD700";
+                })
+                .style("font-size", "12px");
+
+            // Style the most likely behavior
+            behaviorTexts.filter(d => d.id === mostLikelyBehavior.id)
+                         .classed("behavior-most-likely", true)
+                         .style("fill", "#FFD700") // Bright Gold
+                         .style("font-size", "14px");
+
+            // Style the least likely behavior
+            behaviorTexts.filter(d => d.id === leastLikelyBehavior.id)
+                         .classed("behavior-least-likely", true)
+                         .style("fill", "#A9A9A9") // Light Grey
+                         .style("font-size", "10px");
+        }
+
+        // Function to update outer circles based on highest sum
+        function updateOuterCircles() {
+            // Calculate sum AVS for each entity
+            const sumAVSByEntity = {};
+            behaviors.forEach(b => {
+                if (!sumAVSByEntity[b.parent]) {
+                    sumAVSByEntity[b.parent] = 0;
+                }
+                sumAVSByEntity[b.parent] += b.score;
+            });
+
+            // Determine which entity has the highest sum AVS
+            let highestSumEntity = null;
+            let highestSum = -Infinity;
+            for (const [entityId, sumAVS] of Object.entries(sumAVSByEntity)) {
+                if (sumAVS > highestSum) {
+                    highestSum = sumAVS;
+                    highestSumEntity = entityId;
+                }
+            }
+
+            // Style the outer circles
+            node.selectAll("circle.outer-circle")
+                .attr("stroke", d => d.id === highestSumEntity ? colorMap[d.id] : "none")
+                .attr("stroke-width", d => d.id === highestSumEntity ? 4 : 0)
+                .attr("fill", "none"); // Ensure no fill
+        }
+
+        // Function to update shape path based on highest sum
+        function updateShape() {
+            // Calculate sum AVS for each entity
+            const sumAVSByEntity = {};
+            behaviors.forEach(b => {
+                if (!sumAVSByEntity[b.parent]) {
+                    sumAVSByEntity[b.parent] = 0;
+                }
+                sumAVSByEntity[b.parent] += b.score;
+            });
+
+            // Determine which entity has the highest sum AVS
+            let highestSumEntity = null;
+            let highestSum = -Infinity;
+            for (const [entityId, sumAVS] of Object.entries(sumAVSByEntity)) {
+                if (sumAVS > highestSum) {
+                    highestSum = sumAVS;
+                    highestSumEntity = entityId;
+                }
+            }
+
+            // Define color based on the highest sum entity
+            let shapeColor = "grey"; // Default
+            if (highestSumEntity === "isolation") {
+                shapeColor = "#8B0000"; // Dark Red
+            } else if (highestSumEntity === "resistance") {
+                shapeColor = "#004d00"; // Dark Green
+            } else if (highestSumEntity === "estrangement") {
+                shapeColor = "#4a4a4a"; // Dark Gray
+            }
+
+            // Draw or update the shape path
+            // Remove existing shape path if any
+            svg.selectAll(".shape-layer").remove();
+
+            // Create a new shape layer
+            const shapeLayer = svg.append("g").attr("class", "shape-layer");
+
+            // Define shape data (e.g., convex hull)
+            const points = entities.map(c => [c.x, c.y]);
+            const hull = d3.polygonHull(points);
+
+            if (hull) {
+                shapeLayer.append("path")
+                          .attr("d", d3.line().curve(d3.curveCardinalClosed)(hull))
+                          .attr("fill", "none")
+                          .attr("stroke", shapeColor)
+                          .attr("stroke-width", 3)
+                          .attr("opacity", 0.7);
+            }
+        }
+
+        // Initial visualization update
+        updateVisualization();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            svg.attr("width", width).attr("height", height);
+
+            // Recalculate initial positions if necessary
+            // For simplicity, nodes stay where they are after resize
+            updateVisualization();
+        });
+    </script>
+</body>
+</html>

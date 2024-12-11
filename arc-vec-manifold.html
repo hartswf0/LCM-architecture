@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Architectural Vector Manifold</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background: #0a0a1a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Space Mono', monospace;
+            overflow: hidden;
+        }
+        #manifoldCanvas {
+            width: 80vmin;
+            height: 80vmin;
+            background: rgba(10,10,26,0.9);
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 0 50px rgba(0,100,255,0.1);
+        }
+        #overlay {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="overlay">Architectural Vector Manifold</div>
+    <div id="manifoldCanvas"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+
+    <script>
+    class ArchitecturalManifold {
+        constructor() {
+            this.scene = null;
+            this.camera = null;
+            this.renderer = null;
+            this.vectorNodes = [];
+            this.connections = [];
+
+            this.concepts = [
+                {
+                    id: 'creativity',
+                    label: 'Creativity',
+                    color: 0x3498db,
+                    position: new THREE.Vector3(1, 1, 1),
+                    description: 'Generative spatial imagination'
+                },
+                {
+                    id: 'structure',
+                    label: 'Structure',
+                    color: 0xe74c3c,
+                    position: new THREE.Vector3(-1, 1, -1),
+                    description: 'Systemic organizational principles'
+                },
+                {
+                    id: 'interaction',
+                    label: 'Interaction',
+                    color: 0x2ecc71,
+                    position: new THREE.Vector3(1, -1, -1),
+                    description: 'Dynamic spatial engagement'
+                },
+                {
+                    id: 'transformation',
+                    label: 'Transformation',
+                    color: 0xf39c12,
+                    position: new THREE.Vector3(-1, -1, 1),
+                    description: 'Adaptive spatial metamorphosis'
+                }
+            ];
+
+            this.init();
+        }
+
+        init() {
+            // Scene setup
+            this.scene = new THREE.Scene();
+            this.scene.background = new THREE.Color(0x0a0a1a);
+
+            // Camera
+            this.camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+            this.camera.position.z = 5;
+
+            // Renderer
+            this.renderer = new THREE.WebGLRenderer({ antialias: true });
+            this.renderer.setSize(window.innerWidth * 0.8, window.innerHeight * 0.8);
+            document.getElementById('manifoldCanvas').appendChild(this.renderer.domElement);
+
+            this.createVectorNodes();
+            this.createConnections();
+            this.addInteractivity();
+            this.animate();
+        }
+
+        createVectorNodes() {
+            this.concepts.forEach(concept => {
+                const geometry = new THREE.SphereGeometry(0.2, 32, 32);
+                const material = new THREE.MeshStandardMaterial({
+                    color: concept.color,
+                    metalness: 0.7,
+                    roughness: 0.3
+                });
+                const node = new THREE.Mesh(geometry, material);
+                
+                node.position.copy(concept.position);
+                node.userData = concept;
+
+                this.scene.add(node);
+                this.vectorNodes.push(node);
+            });
+
+            // Ambient lighting
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            this.scene.add(ambientLight);
+
+            // Point light
+            const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+            pointLight.position.set(5, 5, 5);
+            this.scene.add(pointLight);
+        }
+
+        createConnections() {
+            const material = new THREE.LineBasicMaterial({ 
+                color: 0xffffff, 
+                transparent: true, 
+                opacity: 0.2 
+            });
+
+            for (let i = 0; i < this.vectorNodes.length; i++) {
+                for (let j = i + 1; j < this.vectorNodes.length; j++) {
+                    const start = this.vectorNodes[i].position;
+                    const end = this.vectorNodes[j].position;
+                    
+                    const points = [];
+                    points.push(start);
+                    points.push(end);
+
+                    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                    const line = new THREE.Line(geometry, material);
+                    
+                    this.scene.add(line);
+                    this.connections.push(line);
+                }
+            }
+        }
+
+        addInteractivity() {
+            const raycaster = new THREE.Raycaster();
+            const mouse = new THREE.Vector2();
+
+            window.addEventListener('mousemove', (event) => {
+                mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = - (event.clientY / window.innerHeight) * 2 + 1;
+
+                raycaster.setFromCamera(mouse, this.camera);
+                const intersects = raycaster.intersectObjects(this.vectorNodes);
+
+                this.vectorNodes.forEach(node => {
+                    node.scale.set(1, 1, 1);
+                });
+
+                if (intersects.length > 0) {
+                    const selectedNode = intersects[0].object;
+                    selectedNode.scale.set(1.5, 1.5, 1.5);
+                    
+                    // Optional: Add tooltip or info display
+                    console.log(selectedNode.userData.description);
+                }
+            });
+        }
+
+        animate() {
+            requestAnimationFrame(() => this.animate());
+
+            // Subtle rotation
+            this.scene.rotation.y += 0.002;
+            this.scene.rotation.x += 0.001;
+
+            this.renderer.render(this.scene, this.camera);
+        }
+    }
+
+    // Initialize on load
+    window.addEventListener('load', () => {
+        new ArchitecturalManifold();
+    });
+    </script>
+</body>
+</html>

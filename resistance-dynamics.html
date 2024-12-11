@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Hostile Architecture: Resistance Dynamics</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body { 
+            font-family: 'Roboto Mono', monospace; 
+            background-color: #121212; 
+            color: #e0e0e0; 
+            display: flex;
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #visualization { 
+            flex-grow: 1; 
+            position: relative;
+            background: linear-gradient(135deg, #1f1f1f, #2c2c2c);
+        }
+        #controls {
+            width: 320px;
+            padding: 20px;
+            background-color: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            border-left: 2px solid #333;
+        }
+        .node {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .link {
+            stroke-opacity: 0.4;
+        }
+        #conceptInfo {
+            margin-top: 15px;
+            background-color: #2a2a2a;
+            padding: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <h2>Resistance Dynamics</h2>
+        <div>
+            <label>Resistance Intensity</label>
+            <input type="range" id="resistanceSampler" min="0" max="1" step="0.01" value="0.5">
+        </div>
+        <div id="conceptInfo">Select a node to explore resistance vectors</div>
+    </div>
+    <div id="visualization"></div>
+
+    <script>
+        class ResistanceEmbeddingVAE {
+            constructor() {
+                this.resistanceConcepts = [
+                    { 
+                        name: "Architectural Isolation", 
+                        vector: [0.7, -0.5, 0.3, -0.2, 0.6, 0.1],
+                        description: "Spatial design that systematically excludes and marginalizes"
+                    },
+                    { 
+                        name: "Persistent Resistance", 
+                        vector: [-0.3, 0.8, 0.4, 0.5, -0.1, 0.7],
+                        description: "Continuous pushback against oppressive spatial configurations"
+                    },
+                    { 
+                        name: "Estrangement Mechanism", 
+                        vector: [0.5, -0.4, 0.7, -0.6, 0.2, -0.3],
+                        description: "Strategies of urban design that create psychological distance"
+                    },
+                    { 
+                        name: "Empowerment Topology", 
+                        vector: [-0.6, 0.5, -0.2, 0.7, 0.4, -0.5],
+                        description: "Spatial redesign that reclaims agency and challenges hostile infrastructures"
+                    },
+                    { 
+                        name: "Participation Without Consent", 
+                        vector: [0.2, -0.7, 0.1, -0.4, 0.3, 0.6],
+                        description: "Forced engagement with designed environments that suppress individual autonomy"
+                    }
+                ];
+            }
+
+            interpolateResistanceConcepts(concept1, concept2, t) {
+                return concept1.vector.map((val, idx) => 
+                    val * (1-t) + concept2.vector[idx] * t
+                );
+            }
+        }
+
+        const vae = new ResistanceEmbeddingVAE();
+        const svg = d3.select("#visualization")
+            .append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%");
+
+        const width = document.getElementById('visualization').clientWidth;
+        const height = document.getElementById('visualization').clientHeight;
+
+        const colorScale = d3.scaleLinear()
+            .domain([-1, 0, 1])
+            .range(["#800000", "#333333", "#008000"]);
+
+        const resistanceSampler = document.getElementById('resistanceSampler');
+        const conceptInfo = document.getElementById('conceptInfo');
+
+        function visualizeResistanceSpace() {
+            const t = parseFloat(resistanceSampler.value);
+            
+            const interpolatedConcepts = vae.resistanceConcepts.flatMap((concept1, i) => 
+                vae.resistanceConcepts.slice(i+1).map(concept2 => ({
+                    name: `Resistance Transition: ${concept1.name} → ${concept2.name}`,
+                    vector: vae.interpolateResistanceConcepts(concept1, concept2, t),
+                    description: `Transitional state between ${concept1.name} and ${concept2.name}`
+                }))
+            );
+
+            const allConcepts = [...vae.resistanceConcepts, ...interpolatedConcepts];
+
+            const simulation = d3.forceSimulation(allConcepts)
+                .force("charge", d3.forceManyBody().strength(-30))
+                .force("center", d3.forceCenter(width / 2, height / 2))
+                .force("collision", d3.forceCollide(20));
+
+            const links = d3.merge(
+                vae.resistanceConcepts.map((d1, i) => 
+                    vae.resistanceConcepts.slice(i+1).map(d2 => ({source: d1, target: d2}))
+                )
+            );
+
+            svg.selectAll(".link")
+                .data(links)
+                .join("line")
+                .attr("class", "link")
+                .attr("stroke", "#444")
+                .attr("stroke-width", 1.5);
+
+            const nodes = svg.selectAll(".node")
+                .data(allConcepts)
+                .join("circle")
+                .attr("class", "node")
+                .attr("r", 10)
+                .attr("fill", d => colorScale(d.vector[0]))
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended))
+                .on("click", function(event, d) {
+                    conceptInfo.innerHTML = `
+                        <strong>${d.name}</strong><br>
+                        ${d.description}<br>
+                        Vector: [${d.vector.map(v => v.toFixed(2))}]
+                    `;
+                });
+
+            simulation.on("tick", () => {
+                svg.selectAll(".link")
+                    .attr("x1", d => d.source.x)
+                    .attr("y1", d => d.source.y)
+                    .attr("x2", d => d.target.x)
+                    .attr("y2", d => d.target.y);
+
+                nodes
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+            });
+
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        resistanceSampler.addEventListener('input', visualizeResistanceSpace);
+        visualizeResistanceSpace();
+    </script>
+</body>
+</html>
